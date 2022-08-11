@@ -7,7 +7,7 @@ class PointCloudScoreUtils:
     '''
 
     @classmethod
-    def getPointCloudDist(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def getDist(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
         '''
         get point cloud distance
         @param pointCloudHat: predicted point cloud,    B x 3 x L1
@@ -29,7 +29,7 @@ class PointCloudScoreUtils:
         }
 
     @classmethod
-    def getPointCloudAccuracy(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def getAccuracy(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
         '''
         get point cloud accuracy
         @param pointCloudHat: predicted point cloud,    B x 3 x L1
@@ -51,7 +51,7 @@ class PointCloudScoreUtils:
         }
 
     @classmethod
-    def getPointCloudCompleteness(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def getCompleteness(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
         '''
         get point cloud completeness
         @param pointCloudHat: predicted point cloud,    B x 3 x L1
