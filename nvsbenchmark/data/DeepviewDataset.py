@@ -1,9 +1,21 @@
 import os
 import json
 import torch
+import math
 from PIL import Image
 from torchvision import transforms
 from torch.utils.data import Dataset
+
+def Clamp(pos, img, tarH, tarW):
+    H, W = img.size(1), img.size(2)
+    U = int(math.floor((H - tarH) / 2.0))
+    D = int(math.ceil((H - tarH) / 2.0))
+    L = int(math.floor((W - tarW) / 2.0))
+    R = int(math.ceil((W - tarW) / 2.0))
+    new_img = img[:, U : H - D, L : W - R]
+    new_pos = pos - torch.tensor(data = [float(L), float(U)])
+
+    return new_pos, new_img
 
 class DeepviewDataset(Dataset):
     def __init__(self, data_path = None, subset_name = None) -> None:
@@ -16,7 +28,16 @@ class DeepviewDataset(Dataset):
         print('This dataset loader will load data from \'', self.data_path, '\'')
         
         self.scenes_names = os.listdir(self.data_path)
+
         print('This subset contains: ', self.scenes_names)
+
+        self.H, self.W = 1190, 2048
+
+        if subset_name == '2k':
+            self.H, self.W = 1190, 2048
+        elif subset_name == '800':
+            self.H, self.W = 460, 800
+        
 
     def __len__(self):
         return len(self.scenes_names)
@@ -38,11 +59,14 @@ class DeepviewDataset(Dataset):
         if index > self.__len__():
             print('Index out of range.')
             return {
-                'imgs': None, # V x H x W x 3
-                'R': None,    # V x 3 x 3
-                't': None, 
-                'pc': None, 
-                'dep': None
+                'principal_points': None, # Rig x Cam x 2      
+                'pixel_aspect_ratios': None, # Rig x Cam
+                'positions': None, # Rig x Cam x 3
+                'focal_lengths': None, # Rig x Cam
+                'orientations': None, # Rig x Cam x 3
+                'imgs': None, # Rig x Cam x 3 x H x W
+                'depths': None,
+                'pointclouds': None
             }
         scene_name = self.scenes_names[index]
         P = os.path.join(self.data_path, scene_name, 'models.json')
@@ -72,6 +96,7 @@ class DeepviewDataset(Dataset):
                 path_img = os.path.join(self.data_path, scene_name, os.path.normpath(raw_data[rig][cam]['relative_path']))
                 img = Image.open(path_img)
                 img_Tensor = transforms.ToTensor()(img)
+                principal_points[rig, cam], img_Tensor = Clamp(principal_points[rig, cam], img_Tensor, self.H, self.W)
                 imgs_tmp.append(img_Tensor)
             imgs.append(imgs_tmp)
 
