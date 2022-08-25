@@ -6,10 +6,15 @@ import math
 class SSIMScore:
 
     @classmethod
-    def getScore(cls, imageHat: torch.Tensor, imageGT: torch.Tensor) -> torch.Tensor:
+    def getScore(cls, imageHat: torch.Tensor, imageGT: torch.Tensor, K1 = 0.01, K2 = 0.03, window_size = 11, max_val = 255, min_val = 0) -> torch.Tensor:
         '''
         @param imageHat: B x C x H x W
         @param imageGT:  B x C x H x W
+        @param K1: float used to compute C1 in Luminance Comparison Function
+        @param K2: float used to compute C2 in Contrast Comparison Function
+        @param window_size: size of window which split the whole image into several blocks
+        @param max_val: the maximum color value(for a single channel)
+        @param max_val: the minimum color value(for a single channel)
         @returns SSIM:   B
 
         employing gaussian kernel to convolve
@@ -23,16 +28,14 @@ class SSIMScore:
             ret = ret/ret.sum()
             return ret
 
-        def create_window(window_size, channel=1) -> torch.Tensor:
-            gauss_vec = gaussian(window_size, 1.5).unsqueeze(1)
+        def create_window(window_size, channel=1, sigma = 1.5) -> torch.Tensor:
+            gauss_vec = gaussian(window_size, sigma).unsqueeze(1)
 
             WD = gauss_vec.mm(gauss_vec.t()).unsqueeze(0).unsqueeze(0)
             WD = WD.expand(channel, 1, window_size, window_size).contiguous()
 
             return WD
 
-        window_size, max_val, min_val = 11, 255, 0
-        K1, K2 = 0.01, 0.03
         L = max_val-min_val
         C1, C2 = (K1*L)**2, (K2*L)**2
 
@@ -59,7 +62,5 @@ class SSIMScore:
         ret = torch.Tensor([ret[x,...].mean() for x in range(B)])
 
         ret=ret.to(device)
-
-        print("ret.size(): ", ret.size())
 
         return ret

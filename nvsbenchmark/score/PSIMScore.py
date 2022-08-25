@@ -5,10 +5,11 @@ import torch.nn.functional as F
 
 class PSIMScore:
     @classmethod
-    def getScore(cls, imageHat: torch.Tensor, imageGT: torch.Tensor) -> torch.Tensor:
+    def getScore(cls, imageHat: torch.Tensor, imageGT: torch.Tensor, gama: float = 1.0/4.0) -> torch.Tensor:
         '''
         @param imageHat: B x C x H x W
         @param imageGT:  B x C x H x W
+        @param gama: weighting factor for SSIM when averaging SSIM & CSIM
         @returns PSIM:   B
         '''
         
@@ -34,8 +35,13 @@ class PSIMScore:
             hsv = torch.cat([hue, saturation, value],dim=1)
             return hsv
 
-        def Get_Dominant_color(img) -> torch.Tensor:
-            S_t, B_t = 0.0, 0.0
+        def Get_Dominant_color(img, S_t = 0.0, B_t = 0.0) -> torch.Tensor:
+            '''
+            @param img: C x H x W
+            @param S_t: threshold for channel 'Saturation' 
+            @param B_t: thredhold for channel 'Brightness'
+            @return Dominant color: C x N
+            '''
 
             shp = img.size()
             ret = img.view(shp[0],shp[1]*shp[2]).contiguous().cpu()
@@ -54,10 +60,15 @@ class PSIMScore:
             return min(abs(x-y), 2-abs(x-y))
 
 
-        def SSIM(imageHat: torch.Tensor, imageGT: torch.Tensor) -> torch.Tensor:
+        def SSIM(imageHat: torch.Tensor, imageGT: torch.Tensor, K1 = 0.01, K2 = 0.03, window_size = 11, max_val = 255, min_val = 0) -> torch.Tensor:
             '''
             @param imageHat: B x C x H x W
             @param imageGT:  B x C x H x W
+            @param K1: float used to compute C1 in Luminance Comparison Function
+            @param K2: float used to compute C2 in Contrast Comparison Function
+            @param window_size: size of window which split the whole image into several blocks
+            @param max_val: the maximum color value(for a single channel)
+            @param max_val: the minimum color value(for a single channel)
             @returns SSIM:   B
 
             employing gaussian kernel to convolve
@@ -71,16 +82,14 @@ class PSIMScore:
                 ret = ret/ret.sum()
                 return ret
 
-            def create_window(window_size, channel=1) -> torch.Tensor:
-                gauss_vec = gaussian(window_size, 1.5).unsqueeze(1)
+            def create_window(window_size, channel=1, sigma = 1.5) -> torch.Tensor:
+                gauss_vec = gaussian(window_size, sigma).unsqueeze(1)
 
                 WD = gauss_vec.mm(gauss_vec.t()).unsqueeze(0).unsqueeze(0)
                 WD = WD.expand(channel, 1, window_size, window_size).contiguous()
 
                 return WD
 
-            window_size, max_val, min_val = 11, 255, 0
-            K1, K2 = 0.01, 0.03
             L = max_val-min_val
             C1, C2 = (K1*L)**2, (K2*L)**2
 
@@ -112,7 +121,6 @@ class PSIMScore:
 
         device = imageHat.device
         B = imageHat.size(0)
-        gama = 1.0/4.0
 
         HSBHat = RGB2HSV(imageHat)
         HSBGT  = RGB2HSV(imageGT)
@@ -141,9 +149,6 @@ class PSIMScore:
         S_c = S_c.pow(1.0/18.0)
 
         S_s = SSIM(imageHat, imageGT)
-
-        print("S_c: ", S_c)
-        print("S_s: ", S_s)
 
         S_p = (1.0 - gama) * S_s + gama * S_c
 

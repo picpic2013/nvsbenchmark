@@ -32,7 +32,52 @@ def reducePts(PC: torch.Tensor, dst) -> torch.Tensor:
     ret = ret[:, chosen_points_idx].to(PC.device)
     return ret
 
-def PC_Dist_CD(PC_from, PC_to, BB, Max_Dist):
+def build_Hat_Filt(PC: torch.Tensor, BB, res, mask) -> torch.Tensor:
+    n = PC.size(1)
+    mask_shape = mask.size()
+    filt = torch.zeros(n, device = PC.device)
+    
+    min_bound = BB[:, 0].unsqueeze(1).expand(3, n)
+    qv = PC.clone()
+
+    qv = ((qv - min_bound) / res +0.5)
+    qv = qv.round().int()
+
+    in_bounds_idx = torch.where((0 <= qv[0, :]) & (qv[0, :] < mask_shape[0]) & \
+                                (0 <= qv[1, :]) & (qv[1, :] < mask_shape[1]) & \
+                                (0 <= qv[2, :]) & (qv[2, :] < mask_shape[2]), 1, 0)
+    in_bounds_idx = torch.nonzero(in_bounds_idx).squeeze(1)
+    in_bounds_pts = qv[:, in_bounds_idx]
+
+    mask_flattened = mask.view(mask_shape[0] * mask_shape[1] * mask_shape[2])
+    in_bounds_pts = qv[0, in_bounds_idx] * mask_shape[1] * mask_shape[2] + \
+                    qv[1, in_bounds_idx] * mask_shape[2] + \
+                    qv[2, in_bounds_idx]
+    in_bounds_pts = in_bounds_pts.long()
+
+    is_mask_idx = torch.where(mask_flattened[in_bounds_pts] == True, 1, 0)
+
+    is_mask_idx = torch.nonzero(is_mask_idx).squeeze(1)
+
+    filt[in_bounds_idx[is_mask_idx]] = 1
+
+    return filt
+
+def build_GT_Filt(PC: torch.Tensor, P) -> torch.Tensor:
+    n = PC.size(1)
+
+    P_t = P.unsqueeze(0)
+
+    tmp_ones = torch.ones(1, n, device = PC.device)
+    PC_ex = torch.cat((PC, tmp_ones), dim = 0)
+
+    dist = torch.mm(P_t, PC_ex).squeeze(0)
+    filt = torch.where(dist >= 0, 1, 0)
+
+    return filt
+
+
+def PC_Dist_CD(PC_from, PC_to, BB, Max_Dist, filt):
     num_from = PC_from.size(1)
     Dist = torch.zeros(num_from, dtype = torch.float64).to(PC_from.device)
     Range = torch.div(BB[:, 1] - BB[:, 0], Max_Dist, rounding_mode='floor')
@@ -41,7 +86,7 @@ def PC_Dist_CD(PC_from, PC_to, BB, Max_Dist):
     for x in range( int( Range[0] ) + 1 ):
         for y in range( int( Range[1] ) + 1 ):
             for z in range( int( Range[2] ) + 1 ):
-                Low = BB[:, 0] + torch.Tensor([x, y, z])*Max_Dist
+                Low = BB[:, 0] + torch.tensor(data = [x, y, z], device = PC_from.device)*Max_Dist
                 High = Low + Max_Dist
 
                 idxF = torch.where((Low[0] <= PC_from[0, :]) & (Low[1] <= PC_from[1, :]) & (Low[2] <= PC_from[2, :]) & \
@@ -68,7 +113,8 @@ def PC_Dist_CD(PC_from, PC_to, BB, Max_Dist):
                     src=torch.tensor(data = Dist_tmp, dtype = torch.float64).to(PC_from.device).squeeze(1)
                     Dist.scatter_(dim=0, index=idxF, src=src)
 
-    #print("Dist: ", Dist)
+    Dist_idx = torch.nonzero(filt).squeeze(1)
+    Dist = Dist[Dist_idx]
 
     return {
         'mean': Dist.mean(),
@@ -83,11 +129,18 @@ class PointCloudScoreUtils:
     '''
 
     @classmethod
-    def getDist(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def getDist(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor, BBs: torch.Tensor = None, masks: list = None, planes: torch.Tensor = None, \
+                         ress: torch.Tensor = None, dst: float = 0.2, Max_Dist: float = 60) -> Dict[str, torch.Tensor]:
         '''
         get point cloud distance
         @param pointCloudHat: predicted point cloud,    B x 3 x L1
         @param pointCloudGT:  ground truth point cloud, B x 3 x L2
+        @param BBs         :  bounding boxes,          B x 3 x 2
+        @param masks       :  masks for pointCloudHat,   [N1, N2, ..., N_B]
+        @param planes      :  planes to split pointCloudGT into two parts,    B x 4
+        @param ress         :  point cloud resolutions,   B
+        @param dst         :  minimum distance between points
+        @param Max_dist    :  maximum distance considered into caculation
 
         @returns Dict
             @key dist=> B
@@ -95,8 +148,6 @@ class PointCloudScoreUtils:
 
         device = pointCloudHat.device
         B = pointCloudHat.size(0)
-        dst, Max_Dist = 0.2, 60
-        BB = torch.Tensor([[0,300],[0,300],[0,300]])
         
         dist_ret = torch.Tensor(B)
 
@@ -104,8 +155,20 @@ class PointCloudScoreUtils:
             PC_Hat = reducePts(pointCloudHat[scan_num], dst)
             PC_GT  = reducePts(pointCloudGT[scan_num],  dst) # 如果GT已经确保了没有相距0.2的点的话，可以去掉
 
-            Acc = PC_Dist_CD(PC_Hat, PC_GT, BB, Max_Dist)
-            Complt = PC_Dist_CD(PC_GT, PC_Hat, BB, Max_Dist)
+            BB = torch.tensor(data = [[0,300],[0,300],[0,300]], device = device)
+            if BBs != None:
+                BB = BBs[scan_num]
+
+            Hat_Filt = torch.ones(PC_Hat.size(1), device = device)
+            if masks != None:
+                Hat_Filt = build_Hat_Filt(PC_Hat, BB, ress[scan_num], masks[scan_num])
+            
+            GT_Filt = torch.ones(PC_GT.size(1), device = device)
+            if planes != None:
+                GT_Filt = build_GT_Filt(PC_GT, planes[scan_num])
+
+            Acc = PC_Dist_CD(PC_Hat, PC_GT, BB, Max_Dist, Hat_Filt)
+            Complt = PC_Dist_CD(PC_GT, PC_Hat, BB, Max_Dist, GT_Filt)
 
             dist_ret[scan_num] = Acc['mean'] * PC_Hat.size(1) + Complt['mean'] * PC_GT.size(1)
 
@@ -116,11 +179,18 @@ class PointCloudScoreUtils:
         }
 
     @classmethod
-    def getAccuracy(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def getAccuracy(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor, BBs: torch.Tensor = None, masks: list = None, planes: torch.Tensor = None, \
+                         ress: torch.Tensor = None, dst: float = 0.2, Max_Dist: float = 60) -> Dict[str, torch.Tensor]:
         '''
         get point cloud accuracy
         @param pointCloudHat: predicted point cloud,    B x 3 x L1
         @param pointCloudGT:  ground truth point cloud, B x 3 x L2
+        @param BBs         :  bounding boxes,          B x 3 x 2
+        @param masks       :  masks for pointCloudHat,   [N1, N2, ..., N_B]
+        @param planes      :  planes to split pointCloudGT into two parts,    B x 4
+        @param ress         :  point cloud resolutions,   B
+        @param dst         :  minimum distance between points
+        @param Max_dist    :  maximum distance considered into caculation
 
         @returns Dict
             @key mean => B
@@ -130,8 +200,6 @@ class PointCloudScoreUtils:
 
         device = pointCloudHat.device
         B = pointCloudHat.size(0)
-        dst, Max_Dist = 0.2, 60
-        BB = torch.Tensor([[0,300],[0,300],[0,300]])
         
         mean_ret = torch.Tensor(B)
         var_ret = torch.Tensor(B)
@@ -141,7 +209,15 @@ class PointCloudScoreUtils:
             PC_Hat = reducePts(pointCloudHat[scan_num], dst)
             PC_GT  = reducePts(pointCloudGT[scan_num],  dst) # 如果GT已经确保了没有相距0.2的点的话，可以去掉
 
-            Acc = PC_Dist_CD(PC_Hat, PC_GT, BB, Max_Dist)
+            BB = torch.tensor(data = [[0,300],[0,300],[0,300]], device = device)
+            if BBs != None:
+                BB = BBs[scan_num]
+
+            Hat_Filt = torch.ones(PC_Hat.size(1), device = device)
+            if masks != None:
+                Hat_Filt = build_Hat_Filt(PC_Hat, BB, ress[scan_num], masks[scan_num])
+
+            Acc = PC_Dist_CD(PC_Hat, PC_GT, BB, Max_Dist, Hat_Filt)
 
             mean_ret[scan_num] = Acc['mean']
             var_ret[scan_num] = Acc['var']
@@ -158,11 +234,18 @@ class PointCloudScoreUtils:
         }
 
     @classmethod
-    def getCompleteness(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def getCompleteness(cls, pointCloudHat: torch.Tensor, pointCloudGT: torch.Tensor, BBs: torch.Tensor = None, masks: list = None, planes: torch.Tensor = None, \
+                         ress: torch.Tensor = None, dst: float = 0.2, Max_Dist: float = 60) -> Dict[str, torch.Tensor]:
         '''
         get point cloud completeness
         @param pointCloudHat: predicted point cloud,    B x 3 x L1
         @param pointCloudGT:  ground truth point cloud, B x 3 x L2
+        @param BBs         :  bounding boxes,          B x 3 x 2
+        @param masks       :  masks for pointCloudHat,   [N1, N2, ..., N_B]
+        @param planes      :  planes to split pointCloudGT into two parts,    B x 4 x 1
+        @param ress         :  point cloud resolutions,   B
+        @param dst         :  minimum distance between points
+        @param Max_dist    :  maximum distance considered into caculation
 
         @returns Dict
             @key mean => B
@@ -172,8 +255,6 @@ class PointCloudScoreUtils:
 
         device = pointCloudHat.device
         B = pointCloudHat.size(0)
-        dst, Max_Dist = 0.2, 60
-        BB = torch.Tensor([[0,300],[0,300],[0,300]])
         
         mean_ret = torch.Tensor(B)
         var_ret = torch.Tensor(B)
@@ -183,7 +264,15 @@ class PointCloudScoreUtils:
             PC_Hat = reducePts(pointCloudHat[scan_num], dst)
             PC_GT  = reducePts(pointCloudGT[scan_num],  dst) # 如果GT已经确保了没有相距0.2的点的话，可以去掉
 
-            Complt = PC_Dist_CD(PC_GT, PC_Hat, BB, Max_Dist)
+            BB = torch.tensor(data = [[0,300],[0,300],[0,300]], device = device)
+            if BBs != None:
+                BB = BBs[scan_num]
+
+            GT_Filt = torch.ones(PC_GT.size(1), device = device)
+            if planes != None:
+                GT_Filt = build_GT_Filt(PC_GT, planes[scan_num])
+
+            Complt = PC_Dist_CD(PC_GT, PC_Hat, BB, Max_Dist, GT_Filt)
 
             mean_ret[scan_num] = Complt['mean']
             var_ret[scan_num] = Complt['var']
