@@ -9,10 +9,8 @@ print('__len__(): ', DataLoader.__len__())
 
 ret = DataLoader.__getitem__(0)
 
-print(ret['imgs'][0][1].size())
-
-print('size: ', ret['imgs'][0][0].size())
-print('pos: ', ret['principal_points'][0][0])
+print('ret[\'imgs\'].size(): ', ret['imgs'].size())
+print('ret[\'extrinsics\']: ', ret['extrinsics'])
 
 '''
 

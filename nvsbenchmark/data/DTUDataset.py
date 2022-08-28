@@ -31,16 +31,19 @@ class DTUDataset(Dataset):
         if index > self.__len__():
             print('Index out of range.')
             return {
-                'rectified_imgs': rectified_imgs, # V x L x H x W x 3       V represents view, L represents light condition
-                'pointcloud_points'    : pointcloud_points, # N x 3
-                'pointcloud_colors'    : pointcloud_colors, # N x 3
-                'pointcloud_normals'   : pointcloud_normals, # N x 3
-                'ObsMask'       : ObsMask, # MH x MW x MD
-                'Res'           : Res, # float
-                'Margin'        : Margin, # int
-                'BB'            : BB, # 2 x 3
-                'Plane'         : Plane, # 4
-                'Cam_Mats'      : Cam_Mats, # V x 3 x 4
+                'rectified_imgs': None, # V x L x H x W x 3       V represents view, L represents light condition
+                'pointcloud_points'    : None, # N x 3
+                'pointcloud_colors'    : None, # N x 3
+                'pointcloud_normals'   : None, # N x 3
+                'ObsMask'       : None, # MH x MW x MD
+                'Res'           : None, # float
+                'Margin'        : None, # int
+                'BB'            : None, # 2 x 3
+                'Plane'         : None, # 4
+                'Cam_Mats'      : None, # V x 3 x 4
+                'Intrinsic'     : None, # 3 x 3
+                'Distortion'    : None, # 5
+                'Extrinsics'    : None, # V x 4 x 4
                 'R': None,
                 't': None, 
                 'dep': None
@@ -48,7 +51,7 @@ class DTUDataset(Dataset):
 
         rectified_imgs = torch.empty(V, L, 3, H, W)
         Cam_Mats = torch.empty(V, 3, 4)
-
+        Extrinsics = torch.zeros(V, 4, 4)
         
         scan_name = self.scenes_names[index]
         scan_num = 0
@@ -64,6 +67,11 @@ class DTUDataset(Dataset):
                     data = line.split(sep = ' ')
                     for k in range(4):
                         Cam_Mats[i, j, k] = float(data[k])
+            
+            camera_Path = os.path.join(self.data_pth, 'Calibration\cal18', 'Calib_Results_stereo.mat')
+            data = scipy.io.loadmat(camera_Path)
+            Extrinsics[i, 0:3, 0:3]
+
 
             for j,id in enumerate(['0_r5000', '1_r5000', '2_r5000', '3_r5000', '4_r5000', '5_r5000', '6_r5000', 'max']):
                 rectified_img_Path = os.path.join(self.data_path, 'Rectified', scan_name, 'rect_%03d_%s.png' % (i+1, id))
@@ -97,6 +105,9 @@ class DTUDataset(Dataset):
             'BB'            : BB, # 2 x 3
             'Plane'         : Plane, # 4
             'Cam_Mats'      : Cam_Mats, # V x 3 x 4
+            'Intrinsic'     : None, # 3 x 3
+            'Distortion'    : None, # 5
+            'Extrinsics'    : None, # V x 4 x 4
             'R': None,
             't': None, 
             'dep': None
