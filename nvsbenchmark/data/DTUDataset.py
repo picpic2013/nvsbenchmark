@@ -8,18 +8,26 @@ from PIL import Image
 from torchvision import transforms
 from torch.utils.data import Dataset
 
+from typing import List
+
 class DTUDataset(Dataset):
-    def __init__(self, data_path = None) -> None:
+    def __init__(self, data_path = None, light_subset: List = None, view_subset: List = None) -> None:
         '''
         @param data_path: the home path of the data set
         @param subset_name: the name of the subset of the dataset
+        @param light_subset: 
         '''
         super(DTUDataset, self).__init__()
         self.data_path = os.path.normpath(data_path)
-        print('This dataset loader will load data from \'', self.data_path, '\'')
+        # print('This dataset loader will load data from \'', self.data_path, '\'')
         
         self.scenes_names = os.listdir(os.path.join(self.data_path, 'Rectified'))
-        print('This subset contains: ', self.scenes_names)
+        # print('This subset contains: ', self.scenes_names)
+
+        if light_subset is None: 
+            light_subset = ['0_r5000', '1_r5000', '2_r5000', '3_r5000', '4_r5000', '5_r5000', '6_r5000', 'max']
+        if view_subset is None:
+            view_subset = [_ for _ in range(49)]
 
     def __len__(self):
         return len(self.scenes_names)
@@ -60,7 +68,7 @@ class DTUDataset(Dataset):
                 scan_num = scan_num * 10 + int(scan_name[i]) - int('0')
 
         for i in range(49):
-            Cam_Mat_Path = os.path.join(self.data_path, 'Calibration\cal18', 'pos_%03d.txt' % (i+1))
+            Cam_Mat_Path = os.path.join(self.data_path, 'Calibration', 'cal18', 'pos_%03d.txt' % (i+1))
             with open(Cam_Mat_Path, 'r') as f:
                 lines = f.readlines()
                 for j, line in enumerate(lines):
@@ -68,7 +76,7 @@ class DTUDataset(Dataset):
                     for k in range(4):
                         Cam_Mats[i, j, k] = float(data[k])
             
-            camera_Path = os.path.join(self.data_pth, 'Calibration\cal18', 'Calib_Results_stereo.mat')
+            camera_Path = os.path.join(self.data_path, 'Calibration', 'cal18', 'Calib_Results_stereo.mat')
             data = scipy.io.loadmat(camera_Path)
             Extrinsics[i, 0:3, 0:3]
 

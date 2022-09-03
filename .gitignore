@@ -3,3 +3,4 @@ sample
 notes.txt
 
 *.pth
+*.egg-info

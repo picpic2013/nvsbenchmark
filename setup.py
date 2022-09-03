@@ -25,6 +25,8 @@ setup(
         'numpy>=1.22.3', 
         'opencv-python>=4.5.5.64', 
         'plyfile>=0.7.4', 
-        'torch>=1.11.0'
+        'torch>=1.11.0', 
+        'sklearn', 
+        'open3d>=0.15.2'
     ]
 )
