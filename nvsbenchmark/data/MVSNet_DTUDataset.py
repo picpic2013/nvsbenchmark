@@ -6,6 +6,7 @@ import cv2
 import re
 import open3d as o3d
 import numpy as np
+from typing import List
 from PIL import Image
 from torchvision import transforms
 from torch.utils.data import Dataset
@@ -26,7 +27,7 @@ def read_cam_param(path, interval_scalar):
             Intrinsic[i, j] = float(data[i*3 + j + 1 + 16 + 1])
 
     near_depth = float(data[1 + 16 + 1 + 9])
-    Intrinsic = Intrinsic * 4.0 # Unclear: whether or not multiply 4.0
+    Intrinsic[0:2] = Intrinsic[0:2] * 4.0 # Unclear: whether or not multiply 4.0
     interval = float(data[1 + 16 + 1 + 9 + 1]) * interval_scalar
 
     return Extrinsic, Intrinsic, near_depth, interval
@@ -69,20 +70,22 @@ def read_pfm(filename):
     return data, scale
 
 class MVSNet_DTUDataset(Dataset):
-    def __init__(self, data_path = None, interval_scalar = 1.0) -> None:
+    def __init__(self, data_path = None, interval_scalar = 1.0, light_subset: List[str] = None, view_subset: List[int] = None) -> None:
         '''
         @param data_path: the home path of the data set
         @param subset_name: the name of the subset of the dataset
         '''
         super(MVSNet_DTUDataset, self).__init__()
         self.data_path = os.path.normpath(data_path)
-        print('This dataset loader will load data from \'', self.data_path, '\'')
+        #print('This dataset loader will load data from \'', self.data_path, '\'')
         
         self.scenes_names = os.listdir(os.path.join(self.data_path, 'Rectified'))
 
-        print('This subset contains: ', self.scenes_names)
+        #print('This subset contains: ', self.scenes_names)
 
         self.interval_scalar = interval_scalar
+        self.light_subset = light_subset
+        self.view_subset = view_subset
 
     def __len__(self):
         return len(self.scenes_names)
@@ -123,6 +126,8 @@ class MVSNet_DTUDataset(Dataset):
 
         L, H, W = 7, 512, 640
         V = len(os.listdir(os.path.join(self.data_path, 'Rectified', scan_name))) // L
+        actual_V = len(self.view_subset)
+        actual_L = len(self.light_subset)
 
         rectified_imgs = torch.empty(V, L, 3, H, W)
         Extrinsics = torch.zeros(V, 4, 4)
@@ -132,6 +137,8 @@ class MVSNet_DTUDataset(Dataset):
         depth_maps = torch.empty(V, H, W)
 
         for i in range(V):
+            if (i not in self.view_subset) & (self.view_subset != None):
+                continue
             Cam_Mat_Path = os.path.join(self.data_path, 'Cameras\\train', '%08d_cam.txt' % i)
             Extrinsic, Intrinsic, near_depth, interval = read_cam_param(Cam_Mat_Path, self.interval_scalar)
 
@@ -141,6 +148,8 @@ class MVSNet_DTUDataset(Dataset):
             intervals[i] = interval
 
             for j,id in enumerate(['0_r5000', '1_r5000', '2_r5000', '3_r5000', '4_r5000', '5_r5000', '6_r5000']):
+                if (id not in self.light_subset) & (self.light_subset != None):
+                    continue
                 rectified_img_Path = os.path.join(self.data_path, 'Rectified', scan_name, 'rect_%03d_%s.png' % (i+1, id))
                 rectified_imgs[i, j, :, :, :] = transforms.ToTensor()(Image.open(rectified_img_Path))
             
@@ -149,7 +158,6 @@ class MVSNet_DTUDataset(Dataset):
             depth_map = cv2.resize(depth_map, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_NEAREST)
             depth_map = depth_map[44:556, 80:720]
             depth_maps[i, :, :] = torch.tensor(depth_map)
-            print('depth_map.size: ', depth_map.shape)
 
         return {
             'rectified_imgs': rectified_imgs, # V x L x H x W x 3       V represents view, L represents light condition

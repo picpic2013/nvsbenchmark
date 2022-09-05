@@ -3,14 +3,15 @@ import json
 import numpy as np
 from nvsbenchmark import DeepviewDataset
 
-DataLoader = DeepviewDataset('F:/database/deepview_spaces', '2k')
+DataLoader = DeepviewDataset('F:/database/deepview_spaces', '2k', [1,4,5,8], [2, 6])
 
 print('__len__(): ', DataLoader.__len__())
 
 ret = DataLoader.__getitem__(0)
 
-print('ret[\'imgs\'].size(): ', ret['imgs'].size())
-print('ret[\'extrinsics\']: ', ret['extrinsics'])
+print('extrinsics', ret['extrinsics'][8, 2]) # Rig x Cam x 4 x 4
+print('intrinsics', ret['intrinsics'][8, 2]) # Rig x Cam x 3 x 3
+print('imgs', ret['imgs'][8, 2]) # Rig x Cam x 3 x H x W
 
 '''
 

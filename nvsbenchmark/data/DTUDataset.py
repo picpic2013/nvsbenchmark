@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from typing import List
 
 class DTUDataset(Dataset):
-    def __init__(self, data_path = None, light_subset: List = None, view_subset: List = None) -> None:
+    def __init__(self, data_path = None, light_subset: List[str] = None, view_subset: List[int] = None) -> None:
         '''
         @param data_path: the home path of the data set
         @param subset_name: the name of the subset of the dataset
@@ -23,18 +23,14 @@ class DTUDataset(Dataset):
         
         self.scenes_names = os.listdir(os.path.join(self.data_path, 'Rectified'))
         # print('This subset contains: ', self.scenes_names)
-
-        if light_subset is None: 
-            light_subset = ['0_r5000', '1_r5000', '2_r5000', '3_r5000', '4_r5000', '5_r5000', '6_r5000', 'max']
-        if view_subset is None:
-            view_subset = [_ for _ in range(49)]
+ 
+        self.light_subset = light_subset
+        self.view_subset = view_subset
 
     def __len__(self):
         return len(self.scenes_names)
 
     def __getitem__(self, index):
-
-        V, L, H, W = 49, 8, 1200, 1600
 
         if index > self.__len__():
             print('Index out of range.')
@@ -57,9 +53,6 @@ class DTUDataset(Dataset):
                 'dep': None
             }
 
-        rectified_imgs = torch.empty(V, L, 3, H, W)
-        Cam_Mats = torch.empty(V, 3, 4)
-        Extrinsics = torch.zeros(V, 4, 4)
         
         scan_name = self.scenes_names[index]
         scan_num = 0
@@ -67,7 +60,16 @@ class DTUDataset(Dataset):
             if ('0' <= scan_name[i]) & (scan_name[i] <= '9'):
                 scan_num = scan_num * 10 + int(scan_name[i]) - int('0')
 
+        L, H, W = 8, 1200, 1600
+        V = len(os.listdir(os.path.join(self.data_path, 'Rectified', scan_name))) // L
+
+        rectified_imgs = torch.empty(V, L, 3, H, W)
+        Cam_Mats = torch.empty(V, 3, 4)
+
+
         for i in range(49):
+            if (i not in self.view_subset) & (self.view_subset != None):
+                continue
             Cam_Mat_Path = os.path.join(self.data_path, 'Calibration', 'cal18', 'pos_%03d.txt' % (i+1))
             with open(Cam_Mat_Path, 'r') as f:
                 lines = f.readlines()
@@ -78,10 +80,11 @@ class DTUDataset(Dataset):
             
             camera_Path = os.path.join(self.data_path, 'Calibration', 'cal18', 'Calib_Results_stereo.mat')
             data = scipy.io.loadmat(camera_Path)
-            Extrinsics[i, 0:3, 0:3]
 
 
             for j,id in enumerate(['0_r5000', '1_r5000', '2_r5000', '3_r5000', '4_r5000', '5_r5000', '6_r5000', 'max']):
+                if (id not in self.light_subset) & (self.light_subset != None):
+                    continue
                 rectified_img_Path = os.path.join(self.data_path, 'Rectified', scan_name, 'rect_%03d_%s.png' % (i+1, id))
                 rectified_imgs[i, j, :, :, :] = transforms.ToTensor()(Image.open(rectified_img_Path))
 

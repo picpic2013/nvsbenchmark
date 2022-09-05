@@ -1,5 +1,6 @@
 import os
 import json
+from typing import List
 import torch
 import math
 import numpy as np
@@ -152,18 +153,18 @@ def Calc_Intrinsic(pixel_aspect_ratio, fx_dx, principal_point):
     ret[0, 2] = 1.0 
 
 class DeepviewDataset(Dataset):
-    def __init__(self, data_path = None, subset_name = None) -> None:
+    def __init__(self, data_path = None, subset_name = None, rig_subset: List[int] = None, cam_subset: List[int] = None) -> None:
         '''
         @param data_path: the home path of the data set
         @param subset_name: the name of the subset of the dataset
         '''
         super(DeepviewDataset, self).__init__()
         self.data_path = os.path.join(os.path.normpath(data_path), subset_name)
-        print('This dataset loader will load data from \'', self.data_path, '\'')
+        #print('This dataset loader will load data from \'', self.data_path, '\'')
         
         self.scenes_names = os.listdir(self.data_path)
 
-        print('This subset contains: ', self.scenes_names)
+        #print('This subset contains: ', self.scenes_names)
 
         self.H, self.W = 1190, 2048
 
@@ -171,6 +172,9 @@ class DeepviewDataset(Dataset):
             self.H, self.W = 1190, 2048
         elif subset_name == '800':
             self.H, self.W = 460, 800
+
+        self.rig_subset = rig_subset
+        self.cam_subset = cam_subset
         
 
     def __len__(self):
@@ -227,7 +231,11 @@ class DeepviewDataset(Dataset):
         imgs = torch.empty(Rig, Cam, 3, self.H, self.W)
 
         for rig in range(Rig):
+            if (rig not in self.rig_subset) & (self.rig_subset != None):
+                continue
             for cam in range(Cam):
+                if (cam not in self.cam_subset) & (self.cam_subset != None):
+                    continue
                 principal_point = torch.tensor(data = raw_data[rig][cam]['principal_point'])
                 pixel_aspect_ratio = torch.tensor(data = raw_data[rig][cam]['pixel_aspect_ratio'])
                 position = torch.tensor(data = raw_data[rig][cam]['position'])
