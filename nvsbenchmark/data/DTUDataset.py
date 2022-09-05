@@ -64,8 +64,8 @@ class DTUDataset(Dataset):
         V = len(os.listdir(os.path.join(self.data_path, 'Rectified', scan_name))) // L
 
         rectified_imgs = torch.empty(V, L, 3, H, W)
-        Cam_Mats = torch.empty(V, 3, 4)
-
+        Extrinsics = torch.eye(4, 4).unsqueeze(0).repeat(V, 1, 1)
+        Intrinsics = torch.eye(3, 3).unsqueeze(0).repeat(V, 1, 1)
 
         for i in range(49):
             if (i not in self.view_subset) & (self.view_subset != None):
@@ -76,7 +76,7 @@ class DTUDataset(Dataset):
                 for j, line in enumerate(lines):
                     data = line.split(sep = ' ')
                     for k in range(4):
-                        Cam_Mats[i, j, k] = float(data[k])
+                        Extrinsics[i, j, k] = float(data[k])
             
             camera_Path = os.path.join(self.data_path, 'Calibration', 'cal18', 'Calib_Results_stereo.mat')
             data = scipy.io.loadmat(camera_Path)
@@ -115,10 +115,10 @@ class DTUDataset(Dataset):
             'Margin'        : Margin, # int
             'BB'            : BB, # 2 x 3
             'Plane'         : Plane, # 4
-            'Cam_Mats'      : Cam_Mats, # V x 3 x 4
-            'Intrinsic'     : None, # 3 x 3
+            'Cam_Mats'      : None, # V x 3 x 4
+            'Intrinsics'     : Intrinsics, # 3 x 3
             'Distortion'    : None, # 5
-            'Extrinsics'    : None, # V x 4 x 4
+            'Extrinsics'    : Extrinsics, # V x 4 x 4
             'R': None,
             't': None, 
             'dep': None
