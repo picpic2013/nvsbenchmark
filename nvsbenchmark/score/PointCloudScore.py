@@ -170,12 +170,12 @@ class PointCloudScoreUtils:
             Acc = PC_Dist_CD(PC_Hat, PC_GT, BB, Max_Dist, Hat_Filt)
             Complt = PC_Dist_CD(PC_GT, PC_Hat, BB, Max_Dist, GT_Filt)
 
-            dist_ret[scan_num] = Acc['mean'] * PC_Hat.size(1) + Complt['mean'] * PC_GT.size(1)
+            dist_ret[scan_num] = (Acc['mean'] * Hat_Filt.sum() + Complt['mean'] * GT_Filt.sum()) / (Hat_Filt.sum() + GT_Filt.sum())
 
         dist_ret = dist_ret.to(device)
 
         return {
-            'dist': torch.rand(B, device=device)
+            'dist': dist_ret
         }
 
     @classmethod

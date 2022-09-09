@@ -5,7 +5,7 @@ from nvsbenchmark import PointCloudScoreUtils
 
 if __name__ == '__main__':
     device = 'cuda:0'
-    B = 10
+    B = 1
     L1 = 10000
     L2 = 10000
 
