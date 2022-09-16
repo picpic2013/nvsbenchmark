@@ -77,10 +77,6 @@ class DTUDataset(Dataset):
                     data = line.split(sep = ' ')
                     for k in range(4):
                         Extrinsics[i, j, k] = float(data[k])
-            
-            camera_Path = os.path.join(self.data_path, 'Calibration', 'cal18', 'Calib_Results_stereo.mat')
-            data = scipy.io.loadmat(camera_Path)
-
 
             for j,id in enumerate(['0_r5000', '1_r5000', '2_r5000', '3_r5000', '4_r5000', '5_r5000', '6_r5000', 'max']):
                 if (id not in self.light_subset) & (self.light_subset != None):
