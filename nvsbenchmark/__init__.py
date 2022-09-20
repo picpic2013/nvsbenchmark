@@ -6,3 +6,4 @@ from nvsbenchmark.data.DTUDataset import DTUDataset
 from nvsbenchmark.data.DeepviewDataset import DeepviewDataset
 from nvsbenchmark.data.MVSNet_DTUDataset import MVSNet_DTUDataset
 from nvsbenchmark.data.RealEstate10KDataset import RealEstate10KDataset
+from nvsbenchmark.data.KITTIDataset import KITTIDataset
