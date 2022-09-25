@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 from typing import List
 
 class DTUDataset(Dataset):
-    def __init__(self, data_path = None, light_subset: List[str] = None, view_subset: List[int] = None,
+    def __init__(self, data_path = None, light_subset: List[str] = None, view_subset: List[int] = None, scene_tot = 128, 
                 ret_rectified = True,
                 ret_cleaned = True,
                 ret_pcd = 'stl',
@@ -32,7 +32,7 @@ class DTUDataset(Dataset):
         super(DTUDataset, self).__init__()
         self.data_path = os.path.normpath(data_path)
         
-        self.scenes_names = os.listdir(os.path.join(self.data_path, 'Rectified'))
+        self.scene_tot = scene_tot
 
         self.light_subset = light_subset
         self.view_subset = view_subset
@@ -50,7 +50,7 @@ class DTUDataset(Dataset):
         self.ret_extrinsics = ret_extrinsics
 
     def __len__(self):
-        return len(self.scenes_names)
+        return self.scene_tot
 
     def __getitem__(self, index):
 
@@ -75,11 +75,9 @@ class DTUDataset(Dataset):
             return RET
 
         L, H, W = 8, 1200, 1600
-        scene_name = self.scenes_names[index]
-        scene_num = 0
-        for i in range(len(scene_name)):
-            if ('0' <= scene_name[i]) & (scene_name[i] <= '9'):
-                scene_num = scene_num * 10 + int(scene_name[i]) - int('0')
+        scene_num = index + 1
+        scene_name = 'scan{}'.format(scene_num)
+
         V = len(os.listdir(os.path.join(self.data_path, 'Rectified', 'scan{}'.format(scene_num)))) // 8
         if self.view_subset:
             actual_V = len(self.view_subset)
@@ -353,7 +351,7 @@ class DTUDataset_per_Scene(Dataset):
 # ====================================================================================================
 
 class DTUDataset_scenes(Dataset):
-    def __init__(self, data_path = None, light_subset: List[str] = None, view_subset: List[int] = None,
+    def __init__(self, data_path = None, light_subset: List[str] = None, view_subset: List[int] = None, scene_tot = 128, 
                 ret_rectified = True,
                 ret_cleaned = True,
                 ret_pcd = 'stl',
@@ -373,7 +371,7 @@ class DTUDataset_scenes(Dataset):
         super(DTUDataset_scenes, self).__init__()
         self.data_path = os.path.normpath(data_path)
         
-        self.scenes_names = os.listdir(os.path.join(self.data_path, 'Rectified'))
+        self.scene_tot = scene_tot
  
         self.light_subset = light_subset
         self.view_subset = view_subset
@@ -391,7 +389,7 @@ class DTUDataset_scenes(Dataset):
         self.ret_extrinsics = ret_extrinsics
 
     def __len__(self):
-        return len(self.scenes_names)
+        return self.scene_tot
 
     def __getitem__(self, index):
 
@@ -399,11 +397,8 @@ class DTUDataset_scenes(Dataset):
             print('Index out of range.')
             return None
         
-        scene_name = self.scenes_names[index]
-        scene_num = 0
-        for i in range(len(scene_name)):
-            if ('0' <= scene_name[i]) & (scene_name[i] <= '9'):
-                scene_num = scene_num * 10 + int(scene_name[i]) - int('0')
+        scene_num = index + 1
+        scene_name = 'scan{}'.format(scene_num)
 
         Dataset_of_Scene = DTUDataset_per_Scene(self.data_path, scene_num, self.light_subset, self.view_subset,
                                                 self.ret_rectified,
