@@ -130,7 +130,7 @@ class DTUDataset(Dataset):
             if self.ret_pcd == 'stl':
                 pointcloud_Path = os.path.join(self.data_path, 'Points', 'stl', 'stl%03d_total.ply' % scene_num)
             else:
-                pointcloud_Path = os.path.join(self.data_path, 'Points_MVS', self.ret_pcd, '%s%03d_l3.ply' % (self.ret_pcd, scene_num))
+                pointcloud_Path = os.path.join(self.data_path, 'Points', self.ret_pcd, '%s%03d_l3.ply' % (self.ret_pcd, scene_num))
             pointcloud = o3d.io.read_point_cloud(pointcloud_Path, format = 'ply')
             pointcloud_points = torch.tensor(np.asarray(pointcloud.points))
             pointcloud_colors = torch.tensor(np.asarray(pointcloud.colors))
@@ -296,7 +296,7 @@ class DTUDataset_per_Scene(Dataset):
             if self.ret_pcd == 'stl':
                 pointcloud_Path = os.path.join(self.data_path, 'Points', 'stl', 'stl%03d_total.ply' % scene_num)
             else:
-                pointcloud_Path = os.path.join(self.data_path, 'Points_MVS', self.ret_pcd, '%s%03d_l3.ply' % (self.ret_pcd, scene_num))
+                pointcloud_Path = os.path.join(self.data_path, 'Points', self.ret_pcd, '%s%03d_l3.ply' % (self.ret_pcd, scene_num))
             pointcloud = o3d.io.read_point_cloud(pointcloud_Path, format = 'ply')
             pointcloud_points = torch.tensor(np.asarray(pointcloud.points))
             pointcloud_colors = torch.tensor(np.asarray(pointcloud.colors))
